@@ -1,11 +1,20 @@
 init:
+	docker network create axum-sqlx-example
 	mkdir -p docker/postgres-data
 
 clean:
 	cd docker && docker compose down -v
 
-start-db:
+login-db:
+	cd docker && docker compose exec db psql -U postgres sample
+
+build:
 	cd docker && docker compose up --build
 
+add-migrate:
+	sqlx migrate add -r ${NAME}
+
 serve:
-	cargo watch -x run
+	sqlx database create
+	sqlx migrate run
+	cargo watch -x run -w src

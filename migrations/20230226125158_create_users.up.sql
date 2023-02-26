@@ -1,0 +1,8 @@
+-- Add up migration script here
+CREATE TABLE IF NOT EXISTS users (
+    user_id UUID PRIMARY KEY,
+    nickname VARCHAR(12) NOT NULL,
+    birthday DATE NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
