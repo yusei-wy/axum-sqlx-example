@@ -1,87 +1,16 @@
 mod entity;
+mod handlers;
+mod postgres_repository;
+mod repository;
 
 use anyhow::Result;
 use axum::{
-    extract::{Path, State},
-    http::StatusCode,
-    response::IntoResponse,
     routing::{get, post},
-    Json, Router,
+    Router,
 };
-use chrono::{NaiveDate, Utc};
 use dotenv::dotenv;
-use sqlx::{postgres::PgPoolOptions, types::uuid::Uuid, PgPool};
+use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::{env, net::SocketAddr};
-
-use entity::{CreateUserPayload, Todo, User};
-
-async fn home() -> &'static str {
-    "Hello World"
-}
-
-async fn health_check() -> impl IntoResponse {
-    StatusCode::NO_CONTENT
-}
-
-async fn create_user(
-    State(pool): State<PgPool>,
-    Json(payload): Json<CreateUserPayload>,
-) -> impl IntoResponse {
-    let birthday = NaiveDate::parse_from_str(&payload.birthday, "%Y-%m-%d").unwrap();
-
-    let new_user = User {
-        user_id: Uuid::new_v4(),
-        nickname: payload.nickname,
-        birthday,
-        created_at: Utc::now(),
-        updated_at: Utc::now(),
-    };
-    let result_user = new_user.clone();
-
-    sqlx::query(
-        r#"
-        INSERT INTO users (user_id, nickname, birthday) VALUES ($1, $2, $3)
-        "#,
-    )
-    .bind(new_user.user_id)
-    .bind(new_user.nickname)
-    .bind(new_user.birthday)
-    .execute(&pool)
-    .await
-    .ok();
-
-    (StatusCode::CREATED, Json(result_user))
-}
-
-async fn all_users(State(pool): State<PgPool>) -> impl IntoResponse {
-    let users = sqlx::query_as!(User, "SELECT * FROM users")
-        .fetch_all(&pool)
-        .await
-        .ok();
-
-    (StatusCode::OK, Json(users))
-}
-
-async fn find_user(State(pool): State<PgPool>, Path(user_id): Path<Uuid>) -> impl IntoResponse {
-    let user = sqlx::query_as!(User, "SELECT * FROM users WHERE user_id = $1", user_id,)
-        .fetch_one(&pool)
-        .await
-        .ok();
-    match user {
-        Some(user) => (StatusCode::OK, Json(user)),
-        // TODO: 見つからなかった場合 dummy user を返さないように
-        None => (
-            StatusCode::NOT_FOUND,
-            Json(User {
-                user_id: Uuid::new_v4(),
-                nickname: "dummy".to_string(),
-                birthday: NaiveDate::from_ymd_opt(1990, 1, 1).unwrap(),
-                created_at: Utc::now(),
-                updated_at: Utc::now(),
-            }),
-        ),
-    }
-}
 
 async fn create_pool() -> Result<PgPool, sqlx::Error> {
     let db_url = env::var("DATABASE_URL").unwrap();
@@ -96,16 +25,16 @@ async fn create_pool() -> Result<PgPool, sqlx::Error> {
 
 fn create_app(pool: PgPool) -> Router {
     Router::new()
-        .route("/", get(home))
-        .route("/health", get(health_check))
+        .route("/", get(handlers::home))
+        .route("/health", get(handlers::health_check))
         .nest(
             "/api",
             Router::new().nest(
                 "/users",
                 Router::new()
-                    .route("/", get(all_users))
-                    .route("/", post(create_user))
-                    .route("/:user_id", get(find_user)),
+                    .route("/", get(handlers::all_users))
+                    .route("/", post(handlers::create_user))
+                    .route("/:user_id", get(handlers::find_user)),
             ),
         )
         .with_state(pool)
@@ -120,6 +49,7 @@ async fn main() -> anyhow::Result<(), sqlx::Error> {
     tracing_subscriber::fmt::init();
 
     let pool = create_pool().await?;
+
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     tracing::debug!("listening on {}", addr);
     let app = create_app(pool.clone());
@@ -134,12 +64,15 @@ async fn main() -> anyhow::Result<(), sqlx::Error> {
 
 #[cfg(test)]
 mod tests {
+    use crate::entity::User;
+
     use super::*;
 
     use axum::{
         body::Body,
         http::{header, Method, Request},
     };
+    use chrono::NaiveDate;
     use tower::ServiceExt;
 
     #[tokio::test]

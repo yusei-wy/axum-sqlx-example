@@ -17,6 +17,13 @@ pub struct CreateUserPayload {
     pub birthday: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct UpdateUserPayload {
+    pub user_id: Uuid,
+    pub nickname: String,
+    pub birthday: String,
+}
+
 #[derive(Serialize, Debug)]
 pub struct Todo {
     pub todo_id: Uuid,
