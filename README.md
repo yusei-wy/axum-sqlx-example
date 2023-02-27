@@ -23,3 +23,4 @@ axum x sqlx
 | path | method |  request |
 | --- | --- | --- |
 | /api/users | POST | `curl -X POST -H "Content-Type: application/json" -d '{"nickname": "", "birthday": "1993-01-01"}' localhost:3000/api/users` |
+| /api/users/:user_id | GET | `curl localhost:3000/api/users/:user_id` |

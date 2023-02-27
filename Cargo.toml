@@ -9,7 +9,6 @@ edition = "2021"
 anyhow = "1.0.69"
 axum = "0.6.7"
 chrono = { version = "0.4.23", features = ["serde"] }
-diesel = { version = "2.0.0", features = ["postgres"] }
 dotenv = "0.15.0"
 serde = { version = "1.0.152", features = ["derive"] }
 sqlx = { version = "0.6.2", features = [
