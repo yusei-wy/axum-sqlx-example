@@ -21,7 +21,7 @@ struct User {
 }
 
 #[derive(Deserialize)]
-struct CreateUserInput {
+struct CreateUserPayload {
     nickname: String,
     birthday: String,
 }
@@ -48,8 +48,8 @@ async fn health_check() -> impl IntoResponse {
 
 async fn create_user(
     State(pool): State<PgPool>,
-    Json(payload): Json<CreateUserInput>,
-) -> (StatusCode, Json<User>) {
+    Json(payload): Json<CreateUserPayload>,
+) -> impl IntoResponse {
     let birthday = NaiveDate::parse_from_str(&payload.birthday, "%Y-%m-%d").unwrap();
 
     let new_user = User {
