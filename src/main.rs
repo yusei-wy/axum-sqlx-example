@@ -76,6 +76,15 @@ async fn create_user(
     (StatusCode::CREATED, Json(result_user))
 }
 
+async fn all_users(State(pool): State<PgPool>) -> impl IntoResponse {
+    let users = sqlx::query_as!(User, "SELECT * FROM users")
+        .fetch_all(&pool)
+        .await
+        .ok();
+
+    (StatusCode::OK, Json(users))
+}
+
 async fn find_user(State(pool): State<PgPool>, Path(user_id): Path<Uuid>) -> impl IntoResponse {
     let user = sqlx::query_as!(User, "SELECT * FROM users WHERE user_id = $1", user_id,)
         .fetch_one(&pool)
@@ -116,6 +125,7 @@ async fn main() -> anyhow::Result<(), sqlx::Error> {
             Router::new().nest(
                 "/users",
                 Router::new()
+                    .route("/", get(all_users))
                     .route("/", post(create_user))
                     .route("/:user_id", get(find_user)),
             ),
