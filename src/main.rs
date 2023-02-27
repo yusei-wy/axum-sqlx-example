@@ -110,6 +110,10 @@ async fn find_user(State(pool): State<PgPool>, Path(user_id): Path<Uuid>) -> imp
 async fn main() -> anyhow::Result<(), sqlx::Error> {
     dotenv().ok();
 
+    let log_level = env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
+    env::set_var("RUST_LOG", log_level);
+    tracing_subscriber::fmt::init();
+
     let db_url = env::var("DATABASE_URL").unwrap();
 
     let pool = PgPoolOptions::new()
@@ -133,6 +137,7 @@ async fn main() -> anyhow::Result<(), sqlx::Error> {
         .with_state(pool.clone());
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    tracing::debug!("listening on {}", addr);
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await

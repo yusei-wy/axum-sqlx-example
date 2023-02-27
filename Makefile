@@ -14,7 +14,7 @@ build:
 add-migrate:
 	sqlx migrate add -r ${NAME}
 
-serve:
+dev:
 	sqlx database create
 	sqlx migrate run
-	cargo watch -x run -w src
+	RUST_LOG=debug cargo watch -x run -w src

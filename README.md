@@ -15,7 +15,7 @@ axum x sqlx
 | --- | --- |
 | `make build` | PostgreSQL DB を docker 上で起動する |
 | `make add-migrate NAME=<name>` | Migration ファイルを追加 |
-| `make serve` | cargo-watch で監視した状態で `cargo run` する |
+| `make dev` | RUST_LOG=debug で cargo-watch で監視し `cargo run` する |
 
 
 ## API
