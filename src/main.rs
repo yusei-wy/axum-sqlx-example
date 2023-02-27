@@ -1,3 +1,5 @@
+mod entity;
+
 use anyhow::Result;
 use axum::{
     extract::{Path, State},
@@ -6,38 +8,12 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
+use chrono::{NaiveDate, Utc};
 use dotenv::dotenv;
-use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgPoolOptions, types::uuid::Uuid, PgPool};
 use std::{env, net::SocketAddr};
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-struct User {
-    user_id: Uuid,
-    nickname: String,
-    birthday: NaiveDate,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
-}
-
-#[derive(Deserialize)]
-struct CreateUserPayload {
-    nickname: String,
-    birthday: String,
-}
-
-#[derive(Serialize, Debug)]
-struct Todo {
-    todo_id_: Uuid,
-    user_id: Uuid,
-    title: String,
-    status: String,
-    published_at: NaiveDateTime,
-    edited_at: NaiveDateTime,
-    created_at: NaiveDateTime,
-    updated_at: NaiveDateTime,
-}
+use entity::{CreateUserPayload, Todo, User};
 
 async fn home() -> &'static str {
     "Hello World"
