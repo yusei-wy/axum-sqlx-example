@@ -1,3 +1,4 @@
+use anyhow::Result;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -11,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgPoolOptions, types::uuid::Uuid, PgPool};
 use std::{env, net::SocketAddr};
 
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 struct User {
     user_id: Uuid,
     nickname: String,
@@ -106,14 +107,7 @@ async fn find_user(State(pool): State<PgPool>, Path(user_id): Path<Uuid>) -> imp
     }
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<(), sqlx::Error> {
-    dotenv().ok();
-
-    let log_level = env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
-    env::set_var("RUST_LOG", log_level);
-    tracing_subscriber::fmt::init();
-
+async fn create_pool() -> Result<PgPool, sqlx::Error> {
     let db_url = env::var("DATABASE_URL").unwrap();
 
     let pool = PgPoolOptions::new()
@@ -121,7 +115,11 @@ async fn main() -> anyhow::Result<(), sqlx::Error> {
         .connect(&db_url)
         .await?;
 
-    let app = Router::new()
+    Ok(pool)
+}
+
+fn create_app(pool: PgPool) -> Router {
+    Router::new()
         .route("/", get(home))
         .route("/health", get(health_check))
         .nest(
@@ -134,10 +132,21 @@ async fn main() -> anyhow::Result<(), sqlx::Error> {
                     .route("/:user_id", get(find_user)),
             ),
         )
-        .with_state(pool.clone());
+        .with_state(pool)
+}
 
+#[tokio::main]
+async fn main() -> anyhow::Result<(), sqlx::Error> {
+    dotenv().ok();
+
+    let log_level = env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
+    env::set_var("RUST_LOG", log_level);
+    tracing_subscriber::fmt::init();
+
+    let pool = create_pool().await?;
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     tracing::debug!("listening on {}", addr);
+    let app = create_app(pool.clone());
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await
@@ -145,4 +154,54 @@ async fn main() -> anyhow::Result<(), sqlx::Error> {
 
     pool.close().await;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use axum::{
+        body::Body,
+        http::{header, Method, Request},
+    };
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn should_return_hello_world() {
+        dotenv().ok();
+
+        let req = Request::builder().uri("/").body(Body::empty()).unwrap();
+        let pool = create_pool().await.unwrap();
+        let res = create_app(pool.clone()).oneshot(req).await.unwrap();
+        let bytes = hyper::body::to_bytes(res.into_body()).await.unwrap();
+        let body = String::from_utf8(bytes.to_vec()).unwrap();
+
+        assert_eq!(body, "Hello World");
+
+        pool.close().await;
+    }
+
+    #[tokio::test]
+    async fn should_return_user_data() {
+        dotenv().ok();
+
+        let req = Request::builder()
+            .uri("/api/users/")
+            .method(Method::POST)
+            .header(header::CONTENT_TYPE, mime::APPLICATION_JSON.as_ref())
+            .body(Body::from(
+                r#"{"nickname": "田中", "birthday": "1992-05-31"}"#,
+            ))
+            .unwrap();
+        let pool = create_pool().await.unwrap();
+        let res = create_app(pool.clone()).oneshot(req).await.unwrap();
+        let bytes = hyper::body::to_bytes(res.into_body()).await.unwrap();
+        let body = String::from_utf8(bytes.to_vec()).unwrap();
+        let user: User = serde_json::from_str(&body).expect("cannot convert User instance.");
+
+        assert_eq!(user.nickname, "田中");
+        assert_eq!(user.birthday, NaiveDate::from_ymd_opt(1992, 5, 31).unwrap());
+
+        pool.close().await;
+    }
 }
