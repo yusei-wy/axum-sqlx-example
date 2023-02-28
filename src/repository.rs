@@ -11,22 +11,24 @@ use crate::entity::{
 pub enum RepositoryError {
     #[error("NotFound, id is {0}")]
     NotFound(String),
+    #[error("Unexpected Error: [{0}]")]
+    Unexpected(String),
 }
 
 #[async_trait]
-pub trait UserRepository {
+pub trait UserRepository: Clone + std::marker::Send + std::marker::Sync + 'static {
     async fn create(&self, payload: CreateUserPayload) -> Result<User>;
-    async fn find(&self, user_id: Uuid) -> Option<User>;
-    async fn all(&self) -> Vec<User>;
-    async fn update(&self, payload: UpdateUserPayload) -> Result<User>;
+    async fn find(&self, user_id: Uuid) -> Result<User>;
+    async fn all(&self) -> Result<Vec<User>>;
+    async fn update(&self, user_id: Uuid, payload: UpdateUserPayload) -> Result<User>;
     async fn delete(&self, user_id: Uuid) -> Result<()>;
 }
 
 #[async_trait]
-pub trait TodoRepository {
+pub trait TodoRepository: Clone + std::marker::Send + std::marker::Sync + 'static {
     async fn create(&self, payload: CreateTodoPayload) -> Result<Todo>;
-    async fn find(&self, todo_id: Uuid) -> Option<Todo>;
-    async fn all(&self) -> Vec<Todo>;
-    async fn update(&self, payload: UpdateTodoPayload) -> Result<Todo>;
+    async fn find(&self, todo_id: Uuid) -> Result<Todo>;
+    async fn all(&self) -> Result<Vec<Todo>>;
+    async fn update(&self, todo_id: Uuid, payload: UpdateTodoPayload) -> Result<Todo>;
     async fn delete(&self, todo_id: Uuid) -> Result<()>;
 }

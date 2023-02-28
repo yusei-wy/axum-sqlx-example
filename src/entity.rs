@@ -11,15 +11,14 @@ pub struct User {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct CreateUserPayload {
     pub nickname: String,
     pub birthday: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct UpdateUserPayload {
-    pub user_id: Uuid,
     pub nickname: String,
     pub birthday: String,
 }

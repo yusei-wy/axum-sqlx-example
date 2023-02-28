@@ -6,26 +6,22 @@ use uuid::Uuid;
 
 use crate::{
     entity::{CreateUserPayload, UpdateUserPayload, User},
-    repository,
+    repository::{self, RepositoryError},
 };
 
-pub struct Repositories {
-    pub user_repository: UserRepository,
-}
-
 #[derive(Debug, Clone)]
-pub struct UserRepository {
+pub struct PgUserRepository {
     pool: PgPool,
 }
 
-impl UserRepository {
-    pub fn new(pool: PgPool) -> UserRepository {
-        UserRepository { pool }
+impl PgUserRepository {
+    pub fn new(pool: PgPool) -> PgUserRepository {
+        PgUserRepository { pool }
     }
 }
 
 #[async_trait]
-impl repository::UserRepository for UserRepository {
+impl repository::UserRepository for PgUserRepository {
     async fn create(&self, payload: CreateUserPayload) -> Result<User> {
         let birthday = NaiveDate::parse_from_str(&payload.birthday, "%Y-%m-%d").unwrap();
 
@@ -53,46 +49,56 @@ impl repository::UserRepository for UserRepository {
         Ok(result_user)
     }
 
-    async fn find(&self, user_id: Uuid) -> Option<User> {
-        sqlx::query_as!(User, "SELECT * FROM users WHERE user_id = $1", user_id)
+    async fn find(&self, user_id: Uuid) -> Result<User> {
+        let user = sqlx::query_as!(User, "SELECT * FROM users WHERE user_id = $1", user_id)
             .fetch_one(&self.pool)
-            .await
-            .ok()
+            .await?;
+
+        Ok(user)
     }
 
-    async fn all(&self) -> Vec<User> {
-        sqlx::query_as!(User, "SELECT * FROM users")
+    async fn all(&self) -> Result<Vec<User>> {
+        let users = sqlx::query_as!(User, "SELECT * FROM users")
             .fetch_all(&self.pool)
-            .await
-            .ok()
-            .map_or_else(|| vec![], |u| u)
+            .await?;
+
+        Ok(users)
     }
 
-    async fn update(&self, payload: UpdateUserPayload) -> Result<User> {
-        todo!()
-        // let birthday = NaiveDate::parse_from_str(&payload.birthday, "%Y-%m-%d").unwrap();
+    async fn update(&self, user_id: Uuid, payload: UpdateUserPayload) -> Result<User> {
+        let user = self.find(user_id).await?;
 
-        // let user = self.find(payload.user_id);
-        // let updated_user = {
-        //     ...user,
-        //     nickname: payload.nickname,
-        //     birthday,
-        // };
+        let birthday = NaiveDate::parse_from_str(&payload.birthday, "%Y-%m-%d").unwrap();
 
-        // sqlx::query(
-        //     r#"
-        // UPDATE users SET nickname = $1, birthday = $2 WHERE user_id = $3
-        // "#,
-        // )
-        // .bind(payload.nickname)
-        // .bind(birthday)
-        // .bind(payload.user_id)
-        // .execute(&pool)
-        // .await
-        // .ok();
+        let result_user = sqlx::query_as!(
+            User,
+            r#"
+UPDATE users SET nickname = $1, birthday = $2 WHERE user_id = $3
+RETURNING *
+"#,
+            payload.nickname,
+            birthday,
+            user_id
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(result_user)
     }
 
-    async fn delete(&self, id: Uuid) -> Result<()> {
-        todo!();
+    async fn delete(&self, user_id: Uuid) -> Result<()> {
+        sqlx::query(
+            r#"
+            DELETE FROM users WHERE user_id = $"#,
+        )
+        .bind(user_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => RepositoryError::NotFound(user_id.to_string()),
+            _ => RepositoryError::Unexpected(e.to_string()),
+        })?;
+
+        Ok(())
     }
 }
