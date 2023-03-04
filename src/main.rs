@@ -26,7 +26,7 @@ fn create_app<T: UserRepository>(repository: T) -> Router {
                 .patch(update_user::<T>)
                 .delete(delete_user::<T>),
         )
-        .layer(Extension(Arc::new(repository)))
+        .with_state(Arc::new(repository))
 }
 
 #[tokio::main]
